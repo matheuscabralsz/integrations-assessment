@@ -4,3 +4,10 @@
 
 # Node
 node_modules/
+
+# Secrets
+.env
+.env.*
+http-client.private.env.json
+/http-client.env.json
+/requests.http
