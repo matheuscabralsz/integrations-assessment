@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchTalents } from './api';
+import { TalentTable } from './components/TalentTable';
 import type { TalentsResponse } from './types';
 
 export default function App() {
@@ -11,11 +12,17 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <h1 className="text-2xl font-semibold">Talent Sync</h1>
-      {error && <p className="mt-4 text-destructive">{error}</p>}
-      {!error && !data && <p className="mt-4 text-muted-foreground">Loading…</p>}
-      {data && <pre className="mt-4 text-xs">{JSON.stringify(data.talents.slice(0, 2), null, 2)}</pre>}
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        <h1 className="text-2xl font-semibold">Talent Sync</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Unified view across Avionte, Bullhorn, and Lever.
+        </p>
+
+        {error && <p className="mt-6 text-destructive">Error: {error}</p>}
+        {!error && !data && <p className="mt-6 text-muted-foreground">Loading…</p>}
+        {data && <TalentTable rows={data.talents} />}
+      </div>
     </div>
   );
 }
