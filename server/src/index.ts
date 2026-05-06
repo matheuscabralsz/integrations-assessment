@@ -2,9 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import { apiPost } from './helpers/http.js';
 import { UpstreamError } from './errors/UpstreamError.js';
-import * as avionte from './integrations/avionte.js';
-import * as bullhorn from './integrations/bullhorn.js';
-import * as lever from './integrations/lever.js';
+import { avionte } from './integrations/avionte.js';
+import { bullhorn } from './integrations/bullhorn.js';
+import { lever } from './integrations/lever.js';
+import { fetchAll } from './integrations/adapter.js';
 import type { Talent, Source, IntegrationError } from './types.js';
 
 const app = express();
@@ -19,16 +20,16 @@ type SourceError = Omit<IntegrationError, 'source'>;
 type SourceResult = { name: Source; talents: Talent[]; error?: SourceError };
 
 app.get('/api/talents', async (_req, res) => {
-  const sources: { name: Source; fn: () => Promise<Talent[]> }[] = [
-    { name: 'avionte', fn: avionte.fetchAll },
-    { name: 'bullhorn', fn: bullhorn.fetchAll },
-    { name: 'lever', fn: lever.fetchAll },
+  const tasks: { name: Source; run: () => Promise<Talent[]> }[] = [
+    { name: avionte.source, run: () => fetchAll(avionte) },
+    { name: bullhorn.source, run: () => fetchAll(bullhorn) },
+    { name: lever.source, run: () => fetchAll(lever) },
   ];
 
   const results = await Promise.all(
-    sources.map(async ({ name, fn }): Promise<SourceResult> => {
+    tasks.map(async ({ name, run }): Promise<SourceResult> => {
       try {
-        return { name, talents: await fn() };
+        return { name, talents: await run() };
       } catch (err) {
         if (err instanceof UpstreamError) {
           return {

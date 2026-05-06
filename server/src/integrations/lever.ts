@@ -1,5 +1,6 @@
 import { apiGet } from '../helpers/http.js';
 import type { Talent, Status } from '../types.js';
+import { PAGE_SIZE, type TalentAdapter } from './adapter.js';
 
 type LeverRaw = {
   id: string;
@@ -14,7 +15,7 @@ type LeverRaw = {
   createdAt: string;
 };
 
-type LeverListResponse = {
+type LeverList = {
   items: LeverRaw[];
   page: number;
   perPage: number;
@@ -27,8 +28,17 @@ function leverStatus(raw: LeverRaw): Status {
   return raw.isActive ? 'Active' : 'Inactive';
 }
 
-export function toTalent(raw: LeverRaw): Talent {
-  return {
+export const lever: TalentAdapter<LeverRaw, number> = {
+  source: 'lever',
+  fetchPage: async page => {
+    const res = await apiGet<LeverList>('/lever/people', {
+      page: page ?? 1,
+      perPage: PAGE_SIZE,
+    });
+    const next = res.page < res.totalPages ? res.page + 1 : undefined;
+    return { items: res.items, nextCursor: next };
+  },
+  normalize: (raw): Talent => ({
     id: raw.id,
     firstName: raw.name.first,
     lastName: raw.name.last,
@@ -39,21 +49,5 @@ export function toTalent(raw: LeverRaw): Talent {
     city: raw.location?.locality ?? '',
     state: raw.location?.region ?? '',
     lastUpdatedDate: new Date(raw.updatedAt).toISOString(),
-  };
-}
-
-const PAGE_SIZE = 50;
-const MAX_PAGES = 50;
-
-export async function fetchAll(): Promise<Talent[]> {
-  const out: Talent[] = [];
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const res = await apiGet<LeverListResponse>('/lever/people', {
-      page,
-      perPage: PAGE_SIZE,
-    });
-    for (const r of res.items) out.push(toTalent(r));
-    if (page >= res.totalPages) return out;
-  }
-  return out;
-}
+  }),
+};

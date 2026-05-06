@@ -1,5 +1,6 @@
 import { apiGet } from '../helpers/http.js';
 import type { Talent, Status } from '../types.js';
+import { PAGE_SIZE, type TalentAdapter } from './adapter.js';
 
 type BullhornRaw = {
   candidate_id: number;
@@ -14,7 +15,7 @@ type BullhornRaw = {
   date_added: number;
 };
 
-type BullhornListResponse = {
+type BullhornList = {
   data: BullhornRaw[];
   total: number;
   start: number;
@@ -27,8 +28,18 @@ const STATUS_MAP: Record<BullhornRaw['employment_status'], Status> = {
   do_not_contact: 'DoNotContact',
 };
 
-export function toTalent(raw: BullhornRaw): Talent {
-  return {
+export const bullhorn: TalentAdapter<BullhornRaw, number> = {
+  source: 'bullhorn',
+  fetchPage: async start => {
+    const res = await apiGet<BullhornList>('/bullhorn/candidates', {
+      start: start ?? 0,
+      count: PAGE_SIZE,
+    });
+    const next = res.start + res.data.length;
+    const done = res.data.length === 0 || next >= res.total;
+    return { items: res.data, nextCursor: done ? undefined : next };
+  },
+  normalize: (raw): Talent => ({
     id: String(raw.candidate_id),
     firstName: raw.first_name,
     lastName: raw.last_name,
@@ -39,23 +50,5 @@ export function toTalent(raw: BullhornRaw): Talent {
     city: raw.address?.city ?? '',
     state: raw.address?.state ?? '',
     lastUpdatedDate: new Date(raw.date_last_modified).toISOString(),
-  };
-}
-
-const PAGE_SIZE = 50;
-const MAX_PAGES = 50;
-
-export async function fetchAll(): Promise<Talent[]> {
-  const out: Talent[] = [];
-  let start = 0;
-  for (let i = 0; i < MAX_PAGES; i++) {
-    const res = await apiGet<BullhornListResponse>('/bullhorn/candidates', {
-      start,
-      count: PAGE_SIZE,
-    });
-    for (const r of res.data) out.push(toTalent(r));
-    if (res.data.length === 0 || start + res.data.length >= res.total) return out;
-    start += res.data.length;
-  }
-  return out;
-}
+  }),
+};

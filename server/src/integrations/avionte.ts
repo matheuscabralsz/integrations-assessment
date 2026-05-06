@@ -1,5 +1,6 @@
 import { apiGet } from '../helpers/http.js';
 import type { Talent, Status } from '../types.js';
+import { PAGE_SIZE, type TalentAdapter } from './adapter.js';
 
 type AvionteRaw = {
   id: string;
@@ -15,13 +16,21 @@ type AvionteRaw = {
   createdDate: string;
 };
 
-type AvionteListResponse = {
+type AvionteList = {
   data: AvionteRaw[];
   nextCursor: string | null;
 };
 
-export function toTalent(raw: AvionteRaw): Talent {
-  return {
+export const avionte: TalentAdapter<AvionteRaw, string> = {
+  source: 'avionte',
+  fetchPage: async cursor => {
+    const res = await apiGet<AvionteList>('/avionte/talents', {
+      limit: PAGE_SIZE,
+      cursor,
+    });
+    return { items: res.data, nextCursor: res.nextCursor ?? undefined };
+  },
+  normalize: (raw): Talent => ({
     id: raw.id,
     firstName: raw.firstName,
     lastName: raw.lastName,
@@ -32,23 +41,5 @@ export function toTalent(raw: AvionteRaw): Talent {
     city: raw.city,
     state: raw.state,
     lastUpdatedDate: raw.lastUpdatedDate,
-  };
-}
-
-const PAGE_SIZE = 50;
-const MAX_PAGES = 50;
-
-export async function fetchAll(): Promise<Talent[]> {
-  const out: Talent[] = [];
-  let cursor: string | undefined;
-  for (let i = 0; i < MAX_PAGES; i++) {
-    const res = await apiGet<AvionteListResponse>('/avionte/talents', {
-      limit: PAGE_SIZE,
-      cursor,
-    });
-    for (const r of res.data) out.push(toTalent(r));
-    if (!res.nextCursor) return out;
-    cursor = res.nextCursor;
-  }
-  return out;
-}
+  }),
+};
