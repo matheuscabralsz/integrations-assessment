@@ -49,7 +49,15 @@ export function TalentTable({ rows }: { rows: TalentRow[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map(r => (
+          {[...rows]
+            .sort((a, b) =>
+              a.lastUpdatedDate < b.lastUpdatedDate
+                ? 1
+                : a.lastUpdatedDate > b.lastUpdatedDate
+                ? -1
+                : 0,
+            )
+            .map(r => (
             <TableRow key={`${r.source}:${r.id}`}>
               <TableCell>
                 <Badge variant="secondary" className={SOURCE_STYLE[r.source]}>
