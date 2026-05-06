@@ -1,0 +1,17 @@
+{
+  "name": "talent-sync",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "dev:debug": "concurrently -n server,web -c blue,green \"npm run dev:debug -w server\" \"npm run dev -w web\"",
+    "dev:debug:wsl": "concurrently -n server,web -c blue,green \"npm run dev:debug:wsl -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w server && npm run build -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
