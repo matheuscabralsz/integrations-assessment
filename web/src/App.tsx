@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import useSWR from 'swr';
 import useSWRMutation from 'swr/mutation';
 import { fetchTalents, postSync } from './api';
@@ -5,6 +6,12 @@ import { TalentTable } from './components/TalentTable';
 import { SyncResults } from './components/SyncResults';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type { TalentRow, Talent } from './types';
 
 function stripSource(rows: TalentRow[]): Talent[] {
@@ -13,8 +20,11 @@ function stripSource(rows: TalentRow[]): Talent[] {
 
 export default function App() {
   const { data, error, isLoading } = useSWR('talents', fetchTalents);
-  const sync = useSWRMutation('sync', (_key, { arg }: { arg: Talent[] }) =>
-    postSync(arg),
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const sync = useSWRMutation(
+    'sync',
+    (_key, { arg }: { arg: Talent[] }) => postSync(arg),
+    { onSuccess: () => setResultsOpen(true) },
   );
 
   return (
@@ -68,8 +78,6 @@ export default function App() {
               </Alert>
             )}
 
-            {sync.data && <SyncResults result={sync.data} />}
-
             {data.talents.length === 0 ? (
               <p role="status" aria-live="polite" className="text-muted-foreground">
                 No talents loaded — all integrations failed. See the banner above.
@@ -86,6 +94,15 @@ export default function App() {
           </>
         )}
       </div>
+
+      <Dialog open={resultsOpen} onOpenChange={setResultsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sync results</DialogTitle>
+          </DialogHeader>
+          {sync.data && <SyncResults result={sync.data} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

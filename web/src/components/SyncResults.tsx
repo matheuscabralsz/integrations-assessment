@@ -1,32 +1,40 @@
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { SyncResponse, SyncDetail } from '@/types';
+import type { SyncResponse, SyncDetail, SyncSummary } from '@/types';
 
-const SUMMARY_TILES = [
-  { key: 'created', label: 'Created' },
-  { key: 'updated', label: 'Updated' },
-  { key: 'unchanged', label: 'Unchanged' },
-  { key: 'conflicts', label: 'Conflicts' },
-  { key: 'errors', label: 'Errors' },
-] as const;
-
-const STATUS_STYLE: Record<SyncDetail['status'], string> = {
+const STATUS_STYLE = {
+  total: 'bg-slate-100 text-slate-900',
   created: 'bg-emerald-100 text-emerald-900',
   updated: 'bg-sky-100 text-sky-900',
   unchanged: 'bg-slate-100 text-slate-700',
   conflict: 'bg-amber-100 text-amber-900',
   error: 'bg-rose-100 text-rose-900',
-};
+} as const;
 
-const GROUP_ORDER: SyncDetail['status'][] = [
-  'error',
-  'conflict',
-  'created',
-  'updated',
-  'unchanged',
+const SUMMARY_TILES: {
+  key: keyof SyncSummary;
+  label: string;
+  styleKey: keyof typeof STATUS_STYLE;
+}[] = [
+  { key: 'total', label: 'Total', styleKey: 'total' },
+  { key: 'created', label: 'Created', styleKey: 'created' },
+  { key: 'updated', label: 'Updated', styleKey: 'updated' },
+  { key: 'unchanged', label: 'Unchanged', styleKey: 'unchanged' },
+  { key: 'conflicts', label: 'Conflicts', styleKey: 'conflict' },
+  { key: 'errors', label: 'Errors', styleKey: 'error' },
 ];
 
-function groupByStatus(details: SyncDetail[]): Map<SyncDetail['status'], SyncDetail[]> {
+const DETAIL_GROUPS: {
+  status: Exclude<SyncDetail['status'], 'unchanged'>;
+  label: string;
+}[] = [
+  { status: 'error', label: 'Errors' },
+  { status: 'conflict', label: 'Conflicts' },
+  { status: 'created', label: 'Created' },
+  { status: 'updated', label: 'Updated' },
+];
+
+function groupByStatus(
+  details: SyncDetail[],
+): Map<SyncDetail['status'], SyncDetail[]> {
   const m = new Map<SyncDetail['status'], SyncDetail[]>();
   for (const d of details) {
     const arr = m.get(d.status) ?? [];
@@ -36,57 +44,73 @@ function groupByStatus(details: SyncDetail[]): Map<SyncDetail['status'], SyncDet
   return m;
 }
 
+function uniqueMessages(items: SyncDetail[]): string[] {
+  const set = new Set<string>();
+  for (const i of items) {
+    if ('message' in i) set.add(i.message);
+  }
+  return [...set];
+}
+
 export function SyncResults({ result }: { result: SyncResponse }) {
   const groups = groupByStatus(result.details);
+  const unchangedCount = groups.get('unchanged')?.length ?? 0;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-xs font-normal text-muted-foreground">Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{result.summary.total}</p>
-          </CardContent>
-        </Card>
+      <div className="flex flex-wrap gap-2">
         {SUMMARY_TILES.map(t => (
-          <Card key={t.key}>
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-normal text-muted-foreground">{t.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{result.summary[t.key]}</p>
-            </CardContent>
-          </Card>
+          <span
+            key={t.key}
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${STATUS_STYLE[t.styleKey]}`}
+          >
+            <span className="font-semibold">{result.summary[t.key]}</span>
+            <span className="opacity-80">{t.label}</span>
+          </span>
         ))}
       </div>
 
-      {GROUP_ORDER.map(status => {
-        const items = groups.get(status);
+      {DETAIL_GROUPS.map(g => {
+        const items = groups.get(g.status);
         if (!items || items.length === 0) return null;
+        const messages = uniqueMessages(items);
+        const sharedMessage = messages.length === 1 ? messages[0] : null;
         return (
-          <div key={status} className="rounded-lg border bg-card">
+          <div key={g.status} className="rounded-lg border bg-card">
             <div className="border-b px-4 py-2">
-              <Badge variant="secondary" className={STATUS_STYLE[status]}>
-                {status} · {items.length}
-              </Badge>
+              <span
+                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[g.status]}`}
+              >
+                {g.label} · {items.length}
+              </span>
+              {sharedMessage && (
+                <p className="mt-1 text-xs text-muted-foreground">{sharedMessage}</p>
+              )}
             </div>
             <ul className="divide-y">
               {items.map(d => (
-                <li key={d.id} className="flex items-start gap-4 px-4 py-3 text-sm">
-                  <span className="font-mono text-xs text-muted-foreground">{d.id}</span>
+                <li
+                  key={d.id}
+                  className="flex items-center gap-4 px-4 py-2 text-sm"
+                >
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {d.id}
+                  </span>
                   {d.status === 'conflict' && (
-                    <span className="ml-auto text-right text-muted-foreground">
-                      {d.message}
-                      <br />
-                      <span className="text-xs">
-                        server lastUpdatedDate: {d.serverVersion.lastUpdatedDate}
-                      </span>
+                    <span className="ml-auto text-right text-xs text-muted-foreground">
+                      server lastUpdatedDate: {d.serverVersion.lastUpdatedDate}
+                      {!sharedMessage && (
+                        <>
+                          {' · '}
+                          <span>{d.message}</span>
+                        </>
+                      )}
                     </span>
                   )}
-                  {d.status === 'error' && (
-                    <span className="ml-auto text-right text-rose-700">{d.message}</span>
+                  {d.status === 'error' && !sharedMessage && (
+                    <span className="ml-auto text-right text-xs text-rose-700">
+                      {d.message}
+                    </span>
                   )}
                 </li>
               ))}
@@ -94,6 +118,12 @@ export function SyncResults({ result }: { result: SyncResponse }) {
           </div>
         );
       })}
+
+      {unchangedCount > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {unchangedCount} unchanged
+        </p>
+      )}
     </div>
   );
 }
