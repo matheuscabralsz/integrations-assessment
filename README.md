@@ -17,6 +17,7 @@ Pulls candidates from Avionté, Bullhorn, and Lever, normalizes them into a sing
 - No retry/backoff or request timeout
 - No client-side validation on the sync endpoint
 - No tests
+- "Resolve all conflicts" PUTs each record back to its source so the source stamps a fresh `lastUpdatedDate`, which makes the next `/sync` accept it. The sync endpoint doesn't expose the server's version of a conflicting record, so this is the closest emulation of conflict resolution the API allows.
 
 ## With a full day
 
