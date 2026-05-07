@@ -2,9 +2,7 @@ import { config } from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { authHeader } from '../interceptors/authHeader.js';
-import { errorThrow } from '../interceptors/errorThrow.js';
-import type { RequestInterceptor, ResponseInterceptor } from '../interceptors/types.js';
+import { UpstreamError } from '../errors/UpstreamError.js';
 
 function findUp(filename: string, startDir: string): string {
   let dir = startDir;
@@ -16,19 +14,21 @@ function findUp(filename: string, startDir: string): string {
   throw new Error(`${filename} not found in any parent of ${startDir}`);
 }
 
+function required(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is required (see .env)`);
+  return v;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 config({ path: findUp('.env', __dirname) });
 
-const baseUrl = process.env.BASE_URL;
-const apiKey = process.env.X_API_KEY;
+const baseUrl = required('BASE_URL');
+const apiKey = required('X_API_KEY');
 
-if (!baseUrl) throw new Error('BASE_URL is required (see .env)');
-if (!apiKey) throw new Error('X_API_KEY is required (see .env)');
+type Query = Record<string, string | number | undefined>;
 
-const requestInterceptors: RequestInterceptor[] = [authHeader(apiKey)];
-const responseInterceptors: ResponseInterceptor[] = [errorThrow];
-
-function buildUrl(reqPath: string, query?: Record<string, string | number | undefined>): URL {
+function buildUrl(reqPath: string, query?: Query): URL {
   const url = new URL(`${baseUrl}${reqPath}`);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
@@ -38,31 +38,38 @@ function buildUrl(reqPath: string, query?: Record<string, string | number | unde
   return url;
 }
 
-async function request<T>(
-  reqPath: string,
-  init: RequestInit,
-  query?: Record<string, string | number | undefined>,
-): Promise<T> {
+async function request<T>(reqPath: string, init: RequestInit, query?: Query): Promise<T> {
   const url = buildUrl(reqPath, query);
 
-  let enriched = init;
-  for (const interceptor of requestInterceptors) {
-    enriched = await interceptor(enriched);
-  }
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      'X-API-KEY': apiKey,
+      Accept: 'application/json',
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init.headers,
+    },
+  });
 
-  let res = await fetch(url, enriched);
-  for (const interceptor of responseInterceptors) {
-    res = await interceptor(res, { path: reqPath });
+  if (!res.ok) {
+    const errText = await res.text();
+    let envelope: { code?: string; message?: string; details?: unknown } | undefined;
+    try {
+      envelope = (JSON.parse(errText) as { error?: typeof envelope })?.error;
+    } catch {}
+    throw new UpstreamError(
+      res.status,
+      envelope?.code,
+      envelope?.message ?? `Upstream ${res.status} on ${reqPath}`,
+      envelope?.details,
+    );
   }
 
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-export function apiGet<T>(
-  reqPath: string,
-  query?: Record<string, string | number | undefined>,
-): Promise<T> {
+export function apiGet<T>(reqPath: string, query?: Query): Promise<T> {
   return request<T>(reqPath, { method: 'GET' }, query);
 }
 
