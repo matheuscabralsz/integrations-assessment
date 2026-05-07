@@ -19,22 +19,23 @@ Pulls candidates from Avionté, Bullhorn, and Lever, normalizes them into a sing
 ## With a full day
 
 - Persist the normalized shape in Postgres so `/api/talents` reads from the DB instead of re-fetching all three sources on every request.
-- A cron job to automatically keep data up to date downstream and upstream
+- A cron job to automatically keep data up to date downstream and upstream.
+- Validate request bodies with `zod` instead of the hand-rolled `parsePatch` type guards in `server/src/index.ts`
 - Add pagination on the `/api/talents` route.
 - Add retry-with-backoff plus a fetch timeout via `AbortController` so transient upstream failures self-heal.
 - Cache `/api/talents` results with a short TTL: currently the same data is re-pulled on every page load.
-- Opening the edit modal, ideally, it should fetch the individual candidate (`/api/talents/{source}/{id}`) on opening the component
-- A button to open a read-only modal allowing the user to see all the candidate information
-- Allow users to edit what columns are visible in the table; this preference can be persisted.
-- Add sort by column in the UI
+- Opening the edit modal should fetch the individual candidate (`/api/talents/{source}/{id}`) instead of editing in-memory data.
+- A read-only modal so the user can see all the candidate fields, not just the ones in the table.
+- Allow users to edit which columns are visible in the table; persist the preference.
+- Add sort-by-column in the UI.
 
 ## Anything that surprised you
 
+- The approach to sync data upstream and downstream surprised me, it's clever and works well, my initial thoughts were creating webhooks, reconciliation cron jobs, etc.
 - The mock API replaces four real services: three CRMs and the sync destination. In a real world application we'd have four sets of credentials. Four error budgets. Four different rate limits, each with its own quirks.
 - Each CRM/ATS shapes the data differently. A couple stood out:
     - Bullhorn's `skills` field is a comma-separated string, not an array
     - Bullhorn returns `country_code`, Lever returns `country: "United States"`, and the unified shape has nowhere to put either
-- The approach to sync data upstream and downstream surprised me; it's clever and works well, my initial thoughts were creating webhooks, reconciliation cron jobs, etc.
 
 ## How I structured the integration and why
 
