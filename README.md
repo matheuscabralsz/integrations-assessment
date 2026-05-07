@@ -32,5 +32,6 @@ Pulls candidates from Avionte, Bullhorn, and Lever, normalizes them into a singl
 ## How I structured the integration and why
 
 - The adapter layer is where most of the work lives, since the brief flags normalization as the focus.
-- Each integration implements a `TalentAdapter` interface with two methods: `fetchPage` to handle that source's pagination convention, and `normalize(raw)` to translate the source-specific shape into the unified `Talent`.
+- Each integration implements a `TalentAdapter` interface with three methods: `fetchPage` (pagination), `normalize(raw)` (source-specific shape → unified `Talent`), and `update(id, patch)` (write a partial change back in the source's native shape).
 - A shared `paginate()` async generator consumes any adapter and yields records until the source's end condition is hit. That keeps pagination logic in one place rather than re-implemented in every adapter.
+- A single `adapters: Record<Source, TalentAdapter>` registry in `server/src/index.ts` is shared by both routes (the GET fan-out and the per-source PUT), so adding a fourth integration is one entry rather than touching multiple call sites.

@@ -7,6 +7,7 @@ export interface TalentAdapter<TRaw, TCursor> {
     nextCursor: TCursor | undefined;
   }>;
   normalize(raw: TRaw): Talent;
+  update(id: string, patch: Partial<Talent>): Promise<Talent>;
 }
 
 export const PAGE_SIZE = 5;

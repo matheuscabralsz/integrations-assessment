@@ -1,4 +1,4 @@
-import type { TalentsResponse, SyncResponse, Talent } from './types';
+import type { TalentsResponse, SyncResponse, Talent, TalentRow, Source } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -46,4 +46,16 @@ export function postSync(talents: Talent[]): Promise<SyncResponse> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ talents }),
   }).then(json<SyncResponse>);
+}
+
+export function updateTalent(
+  source: Source,
+  id: string,
+  patch: Partial<Talent>,
+): Promise<TalentRow> {
+  return fetch(`/api/talents/${source}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  }).then(json<TalentRow>);
 }

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import useSWRMutation from 'swr/mutation';
 import { fetchTalents, postSync } from './api';
 import { TalentTable } from './components/TalentTable';
 import { SyncResults } from './components/SyncResults';
+import { EditTalentDialog } from './components/EditTalentDialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { TalentRow, Talent } from './types';
+import type { TalentRow, Talent, TalentsResponse } from './types';
 
 function stripSource(rows: TalentRow[]): Talent[] {
   return rows.map(({ source: _src, ...rest }) => rest);
@@ -20,12 +21,36 @@ function stripSource(rows: TalentRow[]): Talent[] {
 
 export default function App() {
   const { data, error, isLoading } = useSWR('talents', fetchTalents);
+  const { mutate } = useSWRConfig();
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<TalentRow | null>(null);
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
   const sync = useSWRMutation(
     'sync',
     (_key, { arg }: { arg: Talent[] }) => postSync(arg),
     { onSuccess: () => setResultsOpen(true) },
   );
+
+  function handleSaved(updated: TalentRow) {
+    mutate(
+      'talents',
+      (current?: TalentsResponse) => {
+        if (!current) return current;
+        return {
+          ...current,
+          talents: current.talents.map(t =>
+            t.id === updated.id && t.source === updated.source ? updated : t,
+          ),
+        };
+      },
+      { revalidate: false },
+    );
+    const key = `${updated.source}:${updated.id}`;
+    setHighlightedKey(key);
+    setTimeout(() => {
+      setHighlightedKey(prev => (prev === key ? null : prev));
+    }, 2000);
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,7 +113,11 @@ export default function App() {
                   {data.talents.length} record
                   {data.talents.length === 1 ? '' : 's'}
                 </p>
-                <TalentTable rows={data.talents} />
+                <TalentTable
+                  rows={data.talents}
+                  onEdit={setEditingRow}
+                  highlightedKey={highlightedKey}
+                />
               </>
             )}
           </>
@@ -103,6 +132,18 @@ export default function App() {
           {sync.data && <SyncResults result={sync.data} />}
         </DialogContent>
       </Dialog>
+
+      {editingRow && (
+        <EditTalentDialog
+          key={`${editingRow.source}:${editingRow.id}`}
+          row={editingRow}
+          open
+          onOpenChange={open => {
+            if (!open) setEditingRow(null);
+          }}
+          onSaved={handleSaved}
+        />
+      )}
     </div>
   );
 }

@@ -69,3 +69,7 @@ export function apiGet<T>(
 export function apiPost<T>(reqPath: string, body: unknown): Promise<T> {
   return request<T>(reqPath, { method: 'POST', body: JSON.stringify(body) });
 }
+
+export function apiPut<T>(reqPath: string, body: unknown): Promise<T> {
+  return request<T>(reqPath, { method: 'PUT', body: JSON.stringify(body) });
+}
