@@ -13,5 +13,6 @@ dist/
 .env
 .env.*
 http-client.private.env.json
+/stompp-assessment.iml
 /http-client.env.json
 /requests.http
