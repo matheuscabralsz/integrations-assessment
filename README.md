@@ -11,10 +11,12 @@ Pulls candidates from Avionté, Bullhorn, and Lever, normalizes them into a sing
 ## Trade-offs
 
 - No persistence layer: every request to `/api/talents` re-fetches all three integrations
+- Per the brief, the unified id is the source integration's id. That holds while the three sources use disjoint formats (tal_*, numeric, lev_p_*), but any collision would break id-keyed lookups (e.g. sync result → talent name). I'd rather use an internal id like ${source}:${sourceId} and keep the external value in sourceId.
 - In a larger codebase I'd split route handling from business logic into a service layer, but for three integrations and two routes the extra indirection wasn't worth it.
 - No in-memory cache with TTL
 - No retry/backoff or request timeout
 - No client-side validation on the sync endpoint
+- No tests
 
 ## With a full day
 
