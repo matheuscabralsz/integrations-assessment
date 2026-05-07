@@ -1,6 +1,6 @@
 # Talent Sync
 
-Pulls candidates from Avionte, Bullhorn, and Lever, normalizes them into a single shape, and posts the merged list to `/sync`.
+Pulls candidates from Avionté, Bullhorn, and Lever, normalizes them into a single shape, and posts the merged list to `/sync`.
 
 ## Running locally
 1. Copy `.env.example` to `.env` and set `BASE_URL` and `X_API_KEY`.
@@ -18,16 +18,23 @@ Pulls candidates from Avionte, Bullhorn, and Lever, normalizes them into a singl
 
 ## With a full day
 
-- Persist the unified shape in Postgres so `/api/talents` reads from the DB instead of re-fetching all three sources on every request.
+- Persist the normalized shape in Postgres so `/api/talents` reads from the DB instead of re-fetching all three sources on every request.
+- A cron job to automatically keep data up to date downstream and upstream
+- Add pagination on the `/api/talents` route.
 - Add retry-with-backoff plus a fetch timeout via `AbortController` so transient upstream failures self-heal.
 - Cache `/api/talents` results with a short TTL: currently the same data is re-pulled on every page load.
+- Opening the edit modal, ideally, it should fetch the individual candidate (`/api/talents/{source}/{id}`) on opening the component
+- A button to open a read-only modal allowing the user to see all the candidate information
+- Allow users to edit what columns are visible in the table; this preference can be persisted.
+- Add sort by column in the UI
 
 ## Anything that surprised you
 
-- The mock API replaces four real services: three CRMs and the sync destination. Convenient for the assessment, but it makes it easy to forget what you'd actually deal with in production. Four sets of credentials. Four error budgets. Four different rate limits, each with its own quirks.
+- The mock API replaces four real services: three CRMs and the sync destination. In a real world application we'd have four sets of credentials. Four error budgets. Four different rate limits, each with its own quirks.
 - Each CRM/ATS shapes the data differently. A couple stood out:
     - Bullhorn's `skills` field is a comma-separated string, not an array
     - Bullhorn returns `country_code`, Lever returns `country: "United States"`, and the unified shape has nowhere to put either
+- The approach to sync data upstream and downstream surprised me; it's clever and works well, my initial thoughts were creating webhooks, reconciliation cron jobs, etc.
 
 ## How I structured the integration and why
 

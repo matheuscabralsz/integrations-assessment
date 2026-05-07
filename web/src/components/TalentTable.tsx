@@ -43,10 +43,12 @@ export function TalentTable({
   rows,
   onEdit,
   highlightedKey,
+  dirtyKeys,
 }: {
   rows: TalentRow[];
   onEdit: (row: TalentRow) => void;
   highlightedKey?: string | null;
+  dirtyKeys?: Set<string>;
 }) {
   return (
     <div className="rounded-lg border bg-card">
@@ -76,12 +78,15 @@ export function TalentTable({
             .map(r => {
               const key = rowKey(r);
               const highlighted = key === highlightedKey;
+              const dirty = dirtyKeys?.has(key) ?? false;
               return (
                 <TableRow
                   key={key}
+                  title={dirty ? 'Edited locally — pending sync to upstream' : undefined}
                   className={cn(
                     'transition-colors duration-1000',
                     highlighted && 'bg-yellow-100',
+                    dirty && 'shadow-[inset_4px_0_0_0_rgb(245_158_11)]',
                   )}
                 >
                   <TableCell>

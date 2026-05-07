@@ -5,6 +5,10 @@
 # Node
 node_modules/
 
+# Build artifacts
+*.tsbuildinfo
+dist/
+
 # Secrets
 .env
 .env.*

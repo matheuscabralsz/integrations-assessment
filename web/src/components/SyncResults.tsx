@@ -1,4 +1,7 @@
-import type { SyncResponse, SyncDetail, SyncSummary } from '@/types';
+import { Button } from '@/components/ui/button';
+import type { SyncResponse, SyncDetail, SyncSummary, Source } from '@/types';
+
+export type SyncRowMeta = { name: string; source: Source };
 
 const STATUS_STYLE = {
   total: 'bg-slate-100 text-slate-900',
@@ -52,7 +55,19 @@ function uniqueMessages(items: SyncDetail[]): string[] {
   return [...set];
 }
 
-export function SyncResults({ result }: { result: SyncResponse }) {
+export function SyncResults({
+  result,
+  onResolveError,
+  onResolveAllConflicts,
+  resolvingAll,
+  nameLookup,
+}: {
+  result: SyncResponse;
+  onResolveError?: (id: string) => void;
+  onResolveAllConflicts?: () => void;
+  resolvingAll?: boolean;
+  nameLookup?: Map<string, SyncRowMeta>;
+}) {
   const groups = groupByStatus(result.details);
   const unchangedCount = groups.get('unchanged')?.length ?? 0;
 
@@ -77,41 +92,78 @@ export function SyncResults({ result }: { result: SyncResponse }) {
         const sharedMessage = messages.length === 1 ? messages[0] : null;
         return (
           <div key={g.status} className="rounded-lg border bg-card">
-            <div className="border-b px-4 py-2">
+            <div className="flex items-center gap-3 border-b px-4 py-2">
               <span
                 className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[g.status]}`}
               >
                 {g.label} · {items.length}
               </span>
               {sharedMessage && (
-                <p className="mt-1 text-xs text-muted-foreground">{sharedMessage}</p>
+                <p className="text-xs text-muted-foreground">{sharedMessage}</p>
+              )}
+              {g.status === 'conflict' && onResolveAllConflicts && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto"
+                  onClick={onResolveAllConflicts}
+                  disabled={resolvingAll}
+                >
+                  {resolvingAll ? `Resolving ${items.length}…` : `Resolve all ${items.length}`}
+                </Button>
               )}
             </div>
             <ul className="divide-y">
               {items.map(d => (
                 <li
                   key={d.id}
-                  className="flex items-center gap-4 px-4 py-2 text-sm"
+                  className="flex items-center gap-3 px-4 py-2 text-sm"
                 >
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {d.id}
-                  </span>
-                  {d.status === 'conflict' && (
-                    <span className="ml-auto text-right text-xs text-muted-foreground">
-                      server lastUpdatedDate: {d.serverVersion.lastUpdatedDate}
-                      {!sharedMessage && (
-                        <>
-                          {' · '}
-                          <span>{d.message}</span>
-                        </>
-                      )}
-                    </span>
-                  )}
-                  {d.status === 'error' && !sharedMessage && (
-                    <span className="ml-auto text-right text-xs text-rose-700">
-                      {d.message}
-                    </span>
-                  )}
+                  {(() => {
+                    const meta = nameLookup?.get(d.id);
+                    if (meta) {
+                      return (
+                        <span className="flex items-baseline gap-2">
+                          <span className="font-medium">{meta.name}</span>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {meta.source}:{d.id}
+                          </span>
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {d.id}
+                      </span>
+                    );
+                  })()}
+                  <div className="ml-auto flex items-center gap-3">
+                    {d.status === 'conflict' && (
+                      <span className="text-right text-xs text-muted-foreground">
+                        server lastUpdatedDate: {d.serverVersion.lastUpdatedDate}
+                        {!sharedMessage && (
+                          <>
+                            {' · '}
+                            <span>{d.message}</span>
+                          </>
+                        )}
+                      </span>
+                    )}
+                    {d.status === 'error' && !sharedMessage && (
+                      <span className="text-right text-xs text-rose-700">
+                        {d.message}
+                      </span>
+                    )}
+                    {onResolveError && d.status === 'error' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onResolveError(d.id)}
+                      >
+                        Resolve
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

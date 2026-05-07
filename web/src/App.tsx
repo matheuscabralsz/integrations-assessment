@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import useSWRMutation from 'swr/mutation';
-import { fetchTalents, postSync } from './api';
+import { fetchTalents, postSync, updateTalent } from './api';
 import { TalentTable } from './components/TalentTable';
-import { SyncResults } from './components/SyncResults';
+import { SyncResults, type SyncRowMeta } from './components/SyncResults';
 import { EditTalentDialog } from './components/EditTalentDialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,91 @@ export default function App() {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<TalentRow | null>(null);
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
+  const [resolvingAll, setResolvingAll] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(new Set());
   const sync = useSWRMutation(
     'sync',
     (_key, { arg }: { arg: Talent[] }) => postSync(arg),
-    { onSuccess: () => setResultsOpen(true) },
+    {
+      onSuccess: result => {
+        setResultsOpen(true);
+        const syncedIds = new Set(
+          result.details
+            .filter(
+              d =>
+                d.status === 'created' ||
+                d.status === 'updated' ||
+                d.status === 'unchanged',
+            )
+            .map(d => d.id),
+        );
+        setDirtyKeys(prev => {
+          const next = new Set<string>();
+          for (const key of prev) {
+            const id = key.slice(key.indexOf(':') + 1);
+            if (!syncedIds.has(id)) next.add(key);
+          }
+          return next;
+        });
+      },
+    },
   );
+
+  const nameLookup = useMemo(() => {
+    const m = new Map<string, SyncRowMeta>();
+    data?.talents.forEach(t => {
+      m.set(t.id, {
+        name: `${t.firstName} ${t.lastName}`.trim(),
+        source: t.source,
+      });
+    });
+    return m;
+  }, [data]);
+
+  function handleResolveError(id: string) {
+    if (!data) return;
+    const row = data.talents.find(t => t.id === id);
+    if (!row) return;
+    setResultsOpen(false);
+    setEditingRow(row);
+  }
+
+  async function handleResolveAllConflicts() {
+    if (!data || !sync.data) return;
+    const conflictIds = new Set(
+      sync.data.details.filter(d => d.status === 'conflict').map(d => d.id),
+    );
+    const rows = data.talents.filter(t => conflictIds.has(t.id));
+    if (rows.length === 0) return;
+
+    setResolvingAll(true);
+    setResolveError(null);
+    setDirtyKeys(prev => {
+      const next = new Set(prev);
+      for (const r of rows) next.add(`${r.source}:${r.id}`);
+      return next;
+    });
+    try {
+      const updated = await Promise.all(
+        rows.map(({ source, ...talent }) => updateTalent(source, talent.id, talent)),
+      );
+      const updatedByKey = new Map(updated.map(u => [`${u.source}:${u.id}`, u]));
+      const newTalents = data.talents.map(
+        t => updatedByKey.get(`${t.source}:${t.id}`) ?? t,
+      );
+      mutate(
+        'talents',
+        current => (current ? { ...current, talents: newTalents } : current),
+        { revalidate: false },
+      );
+      await sync.trigger(newTalents.map(({ source: _s, ...rest }) => rest));
+    } catch (err) {
+      setResolveError((err as Error).message);
+    } finally {
+      setResolvingAll(false);
+    }
+  }
 
   function handleSaved(updated: TalentRow) {
     mutate(
@@ -46,6 +126,7 @@ export default function App() {
       { revalidate: false },
     );
     const key = `${updated.source}:${updated.id}`;
+    setDirtyKeys(prev => new Set(prev).add(key));
     setHighlightedKey(key);
     setTimeout(() => {
       setHighlightedKey(prev => (prev === key ? null : prev));
@@ -117,6 +198,7 @@ export default function App() {
                   rows={data.talents}
                   onEdit={setEditingRow}
                   highlightedKey={highlightedKey}
+                  dirtyKeys={dirtyKeys}
                 />
               </>
             )}
@@ -129,7 +211,21 @@ export default function App() {
           <DialogHeader>
             <DialogTitle>Sync results</DialogTitle>
           </DialogHeader>
-          {sync.data && <SyncResults result={sync.data} />}
+          {resolveError && (
+            <Alert variant="destructive">
+              <AlertTitle>Resolve failed</AlertTitle>
+              <AlertDescription>{resolveError}</AlertDescription>
+            </Alert>
+          )}
+          {sync.data && (
+            <SyncResults
+              result={sync.data}
+              onResolveError={handleResolveError}
+              onResolveAllConflicts={handleResolveAllConflicts}
+              resolvingAll={resolvingAll}
+              nameLookup={nameLookup}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
